@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "cisv"
-version = "0.2.6"
+version = "0.1.0"
 description = "High-performance CSV parser with SIMD optimizations"
 readme = "README.md"
 license = {text = "MIT"}
@@ -30,10 +30,10 @@ classifiers = [
 keywords = ["csv", "parser", "simd", "performance", "data"]
 
 [project.urls]
-Homepage = "https://github.com/dicroce/cisv"
-Documentation = "https://github.com/dicroce/cisv#readme"
-Repository = "https://github.com/dicroce/cisv"
-Issues = "https://github.com/dicroce/cisv/issues"
+Homepage = "https://github.com/Sanix-Darker/cisv-python"
+Documentation = "https://github.com/Sanix-Darker/cisv-python#readme"
+Repository = "https://github.com/Sanix-Darker/cisv-python"
+Issues = "https://github.com/Sanix-Darker/cisv-python/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
