@@ -2,6 +2,10 @@
 
 Python bindings distribution for CISV (ctypes + nanobind).
 
+## Upstream core
+
+- cisv-core: https://github.com/Sanix-Darker/cisv-core
+
 ## Install nanobind package
 
 ```bash
