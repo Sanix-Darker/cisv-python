@@ -1,0 +1,12 @@
+name: Benchmark Python
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
+      - run: docker run --rm --platform linux/amd64 --cpus=2 --memory=4g cisv-pynb-bench

@@ -1,0 +1,21 @@
+# Include documentation
+include LICENSE
+include README.md
+
+# Include the C source code for building from source
+graft core
+prune core/build
+prune core/build-asan
+
+# Include makefiles
+include core/Makefile
+
+# Exclude compiled objects and pre-built libraries
+# Libraries will be built from source during installation
+global-exclude *.o
+global-exclude *.a
+global-exclude *.so
+global-exclude *.dylib
+global-exclude *.dll
+global-exclude *.pyc
+global-exclude __pycache__
