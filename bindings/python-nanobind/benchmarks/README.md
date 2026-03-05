@@ -7,6 +7,10 @@ Isolated Docker-based benchmark comparing CISV against popular Python CSV parser
 | Library | Description |
 |---------|-------------|
 | **cisv** | High-performance C parser with SIMD optimizations |
+| **cisv-iterator** | Row-by-row streaming parser (minimal peak memory) |
+| **cisv-parallel** | Multi-threaded parser with Python list output |
+| **cisv-fast** | Parallel parser with NumPy output |
+| **cisv-bench** | Raw parser benchmark mode (count only) |
 | **polars** | Rust-based DataFrame library with Arrow backend |
 | **pyarrow** | Apache Arrow's CSV reader (columnar format) |
 | **pandas** | Popular DataFrame library |
@@ -19,39 +23,39 @@ Isolated Docker-based benchmark comparing CISV against popular Python CSV parser
 
 ```bash
 # From repository root
-docker build -t sanix-darker/cisv-python-benchmarks -f bindings/python-nanobind/benchmarks/Dockerfile .
+docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
 ```
 
 ### Run the benchmark
 
 ```bash
 # Default: 1M rows x 10 columns with CPU/RAM isolation
-docker run -ti --cpus=2 --memory=4g --memory-swap=4g --rm sanix-darker/cisv-python-benchmarks:latest
+docker run -ti --cpus=2 --memory=4g --memory-swap=4g --rm cisv-pynb-bench
 ```
 
 ### Custom configurations
 
 ```bash
 # 10M rows x 20 columns
-docker run -ti --cpus=2 --memory=4g --rm sanix-darker/cisv-python-benchmarks:latest \
+docker run -ti --cpus=2 --memory=4g --rm cisv-pynb-bench \
     --rows 10000000 --cols 20
 
 # Fast mode (parallel parsing with numpy arrays)
-docker run -ti --cpus=2 --memory=4g --rm sanix-darker/cisv-python-benchmarks:latest \
+docker run -ti --cpus=2 --memory=4g --rm cisv-pynb-bench \
     --rows 1000000 --fast
 
 # Benchmark mode (raw parsing speed, no data marshaling)
-docker run -ti --cpus=2 --memory=4g --rm sanix-darker/cisv-python-benchmarks:latest \
+docker run -ti --cpus=2 --memory=4g --rm cisv-pynb-bench \
     --rows 1000000 --benchmark
 
 # Only cisv modes comparison
-docker run -ti --cpus=2 --memory=4g --rm sanix-darker/cisv-python-benchmarks:latest \
+docker run -ti --cpus=2 --memory=4g --rm cisv-pynb-bench \
     --rows 1000000 --only-cisv
 
 # Use an existing CSV file (mount volume)
 docker run -ti --cpus=2 --memory=4g --rm \
     -v /path/to/data:/data \
-    sanix-darker/cisv-python-benchmarks:latest \
+    cisv-pynb-bench \
     --file /data/large.csv
 ```
 

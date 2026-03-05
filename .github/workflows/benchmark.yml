@@ -8,5 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
-      - run: docker run --rm --platform linux/amd64 --cpus=2 --memory=4g cisv-pynb-bench
+      - name: Build benchmark image
+        run: docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
+      - name: Run benchmark
+        run: |
+          set -euo pipefail
+          docker run --rm --platform linux/amd64 --cpus=2 --memory=4g cisv-pynb-bench --rows 200000 --only-cisv | tee bench.out
+          grep -q "cisv-iterator" bench.out
