@@ -5,10 +5,6 @@ updates:
     schedule:
       interval: "weekly"
   - package-ecosystem: "pip"
-    directory: "/bindings/python"
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "pip"
-    directory: "/bindings/python-nanobind"
+    directory: "/cisv"
     schedule:
       interval: "weekly"

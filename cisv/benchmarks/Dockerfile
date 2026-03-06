@@ -18,11 +18,11 @@ COPY . /benchmark/cisv/
 # Build and install cisv
 WORKDIR /benchmark/cisv
 RUN make clean || true && make core
-WORKDIR /benchmark/cisv/bindings/python-nanobind
+WORKDIR /benchmark/cisv/cisv
 RUN pip install --no-cache-dir .
 
 # Copy benchmark script
-COPY bindings/python-nanobind/benchmarks/benchmark.py /benchmark/
+COPY cisv/benchmarks/benchmark.py /benchmark/
 
 WORKDIR /benchmark
 

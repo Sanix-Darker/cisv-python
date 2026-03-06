@@ -25,14 +25,14 @@ pip install cisv
 ### From source
 
 ```bash
-cd bindings/python-nanobind
+cd cisv
 pip install .
 ```
 
 ### Development install
 
 ```bash
-cd bindings/python-nanobind
+cd cisv
 pip install -e .
 ```
 
@@ -171,7 +171,7 @@ for row in cisv.open_iterator('data.csv'):
 ## Running Tests
 
 ```bash
-cd bindings/python-nanobind
+cd cisv
 pip install -e ".[test]"
 pytest
 ```

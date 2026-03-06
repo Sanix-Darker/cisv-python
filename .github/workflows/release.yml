@@ -32,20 +32,19 @@ jobs:
             echo "Tag/version mismatch: tag=$TAG_VERSION VERSION=$VERSION"
             exit 1
           }
-          sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" bindings/python-nanobind/pyproject.toml
-          sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" bindings/python/pyproject.toml
-          rm -rf bindings/python-nanobind/core
-          cp -r core/core bindings/python-nanobind/core
+          sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" cisv/pyproject.toml
+          rm -rf cisv/core
+          cp -r core/core cisv/core
       - name: Build wheel and sdist
         run: |
           make -C core/core all
-          cd bindings/python-nanobind
+          cd cisv
           pip install build
           python -m build
       - uses: actions/upload-artifact@v4
         with:
           name: python-dist
-          path: bindings/python-nanobind/dist/*
+          path: cisv/dist/*
 
   publish-pypi:
     needs: build-wheels

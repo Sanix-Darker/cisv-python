@@ -5,7 +5,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-Python binding distribution for CISV using the nanobind implementation (`bindings/python-nanobind`) with SIMD-accelerated core parsing.
+Python binding distribution for CISV using the nanobind implementation (`cisv`) with SIMD-accelerated core parsing.
 
 ## Features
 
@@ -34,7 +34,7 @@ pip install cisv
 git clone --recurse-submodules https://github.com/Sanix-Darker/cisv-python
 cd cisv-python
 make -C core/core all
-cd bindings/python-nanobind
+cd cisv
 pip install .
 ```
 
@@ -124,7 +124,7 @@ Runnable examples are available in [`examples/`](./examples):
 ## Benchmarks
 
 ```bash
-docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
+docker build -t cisv-pynb-bench -f cisv/benchmarks/Dockerfile .
 docker run --rm --platform linux/amd64 --cpus=2 --memory=4g cisv-pynb-bench
 ```
 

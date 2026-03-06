@@ -14,18 +14,13 @@ jobs:
           fetch-depth: 0
       - name: Update cisv-core submodule to latest main
         run: git submodule update --init --remote --recursive
-      - name: Verify VERSION matches pyproject versions
+      - name: Verify VERSION matches pyproject version
         run: |
           set -euo pipefail
           VERSION="$(cat VERSION)"
-          PY_NB_VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' bindings/python-nanobind/pyproject.toml | head -n1)"
-          PY_CTYPES_VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' bindings/python/pyproject.toml | head -n1)"
-          [ "$VERSION" = "$PY_NB_VERSION" ] || {
-            echo "Version mismatch nanobind: VERSION=$VERSION pyproject=$PY_NB_VERSION"
-            exit 1
-          }
-          [ "$VERSION" = "$PY_CTYPES_VERSION" ] || {
-            echo "Version mismatch ctypes: VERSION=$VERSION pyproject=$PY_CTYPES_VERSION"
+          PY_VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' cisv/pyproject.toml | head -n1)"
+          [ "$VERSION" = "$PY_VERSION" ] || {
+            echo "Version mismatch: VERSION=$VERSION pyproject=$PY_VERSION"
             exit 1
           }
 
@@ -50,7 +45,7 @@ jobs:
         run: make -C core/core all
       - name: Install and test nanobind binding
         run: |
-          cd bindings/python-nanobind
+          cd cisv
           pip install -U pip
           pip install .
           cd /tmp

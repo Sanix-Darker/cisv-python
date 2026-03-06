@@ -23,7 +23,7 @@ Isolated Docker-based benchmark comparing CISV against popular Python CSV parser
 
 ```bash
 # From repository root
-docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
+docker build -t cisv-pynb-bench -f cisv/benchmarks/Dockerfile .
 ```
 
 ### Run the benchmark
@@ -87,5 +87,5 @@ To run benchmarks locally without Docker:
 pip install cisv polars pyarrow pandas duckdb numpy
 
 # Run benchmark
-python bindings/python-nanobind/benchmarks/benchmark.py --rows 1000000 --cols 10
+python cisv/benchmarks/benchmark.py --rows 1000000 --cols 10
 ```
