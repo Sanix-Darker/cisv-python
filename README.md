@@ -31,12 +31,24 @@ pip install cisv
 ### From source
 
 ```bash
-git clone https://github.com/Sanix-Darker/cisv-python
+git clone --recurse-submodules https://github.com/Sanix-Darker/cisv-python
 cd cisv-python
 make -C core all
 cd bindings/python-nanobind
 pip install .
 ```
+
+## Core Dependency (Submodule)
+
+This repository tracks `cisv-core` via the `./core` git submodule.
+
+To fetch the latest `cisv-core` (main branch) in your local clone:
+
+```bash
+git submodule update --init --remote --recursive
+```
+
+CI and release workflows also run this update command, so new `cisv-core` releases are pulled automatically during builds.
 
 ## Quick Start
 

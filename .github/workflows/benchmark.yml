@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Update cisv-core submodule to latest main
+        run: git submodule update --init --remote --recursive
       - name: Build benchmark image
         run: docker build -t cisv-pynb-bench -f bindings/python-nanobind/benchmarks/Dockerfile .
       - name: Run benchmark
