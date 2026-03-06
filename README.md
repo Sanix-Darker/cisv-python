@@ -33,7 +33,7 @@ pip install cisv
 ```bash
 git clone --recurse-submodules https://github.com/Sanix-Darker/cisv-python
 cd cisv-python
-make -C core all
+make -C core/core all
 cd bindings/python-nanobind
 pip install .
 ```
