@@ -1,4 +1,5 @@
 # cisv-python
+![Python Install](./assets/python-install.png)
 [![CI](https://github.com/Sanix-Darker/cisv-python/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanix-Darker/cisv-python/actions/workflows/ci.yml)
 [![PyPI Version](https://img.shields.io/pypi/v/cisv.svg)](https://pypi.org/project/cisv/)
 [PyPI Package](https://pypi.org/project/cisv/)
@@ -122,6 +123,7 @@ Runnable examples are available in [`examples/`](./examples):
 - `sample.csv`
 
 ## Benchmarks
+![Python Benchmarks](./assets/benchmark-python.png)
 
 ```bash
 docker build -t cisv-pynb-bench -f cisv/benchmarks/Dockerfile .
