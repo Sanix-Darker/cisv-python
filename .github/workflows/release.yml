@@ -27,20 +27,22 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(cat VERSION)"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          [ "$TAG_VERSION" = "$VERSION" ] || {
-            echo "Tag/version mismatch: tag=$TAG_VERSION VERSION=$VERSION"
-            exit 1
-          }
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            [ "$TAG_VERSION" = "$VERSION" ] || {
+              echo "Tag/version mismatch: tag=$TAG_VERSION VERSION=$VERSION"
+              exit 1
+            }
+          fi
           sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" cisv/pyproject.toml
           rm -rf cisv/core
           cp -r core/core cisv/core
-      - name: Build wheel and sdist
+      - name: Build sdist
         run: |
           make -C core/core all
           cd cisv
           pip install build
-          python -m build
+          python -m build --sdist
       - uses: actions/upload-artifact@v4
         with:
           name: python-dist
@@ -67,6 +69,7 @@ jobs:
         with:
           packages-dir: dist
           attestations: false
+          skip-existing: true
           password: ${{ secrets.PYPI_API_TOKEN }}
 
   release:
@@ -79,7 +82,10 @@ jobs:
           fetch-depth: 0
       - name: Update cisv-core submodule to latest main
         run: git submodule update --init --remote --recursive
+      - name: Resolve release tag
+        id: rel
+        run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.rel.outputs.tag }}
           generate_release_notes: true
