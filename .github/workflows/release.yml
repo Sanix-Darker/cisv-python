@@ -20,8 +20,15 @@ jobs:
           python-version: '3.12'
       - name: Prepare version and sources
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
+          VERSION="$(cat VERSION)"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          [ "$TAG_VERSION" = "$VERSION" ] || {
+            echo "Tag/version mismatch: tag=$TAG_VERSION VERSION=$VERSION"
+            exit 1
+          }
           sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" bindings/python-nanobind/pyproject.toml
+          sed -i -E "s/^version = \".*\"/version = \"${VERSION}\"/" bindings/python/pyproject.toml
           rm -rf bindings/python-nanobind/core
           cp -r core bindings/python-nanobind/core
       - name: Build wheel and sdist
