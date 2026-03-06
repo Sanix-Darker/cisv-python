@@ -32,26 +32,26 @@ if(SKBUILD)
         set(CISV_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
         message(STATUS "Using local core sources (sdist)")
     # Option 2: Parent submodule layout (development/cibuildwheel from git checkout)
-    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../core/core/src/parser.c")
-        get_filename_component(CISV_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../core/core" ABSOLUTE)
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../core/core/src/parser.c")
+        get_filename_component(CISV_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core/core" ABSOLUTE)
         message(STATUS "Using parent submodule core sources: ${CISV_CORE_DIR}")
     # Option 3: Legacy parent layout
-    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../core/src/parser.c")
-        get_filename_component(CISV_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../core" ABSOLUTE)
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../core/src/parser.c")
+        get_filename_component(CISV_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core" ABSOLUTE)
         message(STATUS "Using parent core sources: ${CISV_CORE_DIR}")
     # Option 4: SKBUILD_PROJECT_DIR with submodule layout
-    elseif(DEFINED SKBUILD_PROJECT_DIR AND EXISTS "${SKBUILD_PROJECT_DIR}/../../core/core/src/parser.c")
-        get_filename_component(CISV_CORE_DIR "${SKBUILD_PROJECT_DIR}/../../core/core" ABSOLUTE)
+    elseif(DEFINED SKBUILD_PROJECT_DIR AND EXISTS "${SKBUILD_PROJECT_DIR}/../core/core/src/parser.c")
+        get_filename_component(CISV_CORE_DIR "${SKBUILD_PROJECT_DIR}/../core/core" ABSOLUTE)
         message(STATUS "Using SKBUILD_PROJECT_DIR submodule core sources: ${CISV_CORE_DIR}")
     # Option 5: SKBUILD_PROJECT_DIR legacy layout
-    elseif(DEFINED SKBUILD_PROJECT_DIR AND EXISTS "${SKBUILD_PROJECT_DIR}/../../core/src/parser.c")
-        get_filename_component(CISV_CORE_DIR "${SKBUILD_PROJECT_DIR}/../../core" ABSOLUTE)
+    elseif(DEFINED SKBUILD_PROJECT_DIR AND EXISTS "${SKBUILD_PROJECT_DIR}/../core/src/parser.c")
+        get_filename_component(CISV_CORE_DIR "${SKBUILD_PROJECT_DIR}/../core" ABSOLUTE)
         message(STATUS "Using SKBUILD_PROJECT_DIR core sources: ${CISV_CORE_DIR}")
     else()
         message(FATAL_ERROR "Cannot find core sources. Searched in:\n"
             "  ${CMAKE_CURRENT_SOURCE_DIR}/core/src/parser.c\n"
-            "  ${CMAKE_CURRENT_SOURCE_DIR}/../../core/core/src/parser.c\n"
-            "  ${CMAKE_CURRENT_SOURCE_DIR}/../../core/src/parser.c")
+            "  ${CMAKE_CURRENT_SOURCE_DIR}/../core/core/src/parser.c\n"
+            "  ${CMAKE_CURRENT_SOURCE_DIR}/../core/src/parser.c")
     endif()
 
     # Add core library sources directly
@@ -141,7 +141,7 @@ if(SKBUILD)
 else()
     target_link_libraries(_core PRIVATE cisv_static)
     target_include_directories(_core PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../core/core/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../core/core/include
     )
 endif()
 
