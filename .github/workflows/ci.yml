@@ -19,6 +19,7 @@ jobs:
           cd bindings/python-nanobind
           pip install -U pip
           pip install .
+          cd /tmp
           python - <<'PY'
           import cisv
           rows = cisv.parse_string("a,b\n1,2\n")
