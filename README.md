@@ -1,14 +1,16 @@
 # cisv-python
+
 ![Python Install](./assets/python-install.png)
+
 [![CI](https://github.com/Sanix-Darker/cisv-python/actions/workflows/ci.yml/badge.svg)](https://github.com/Sanix-Darker/cisv-python/actions/workflows/ci.yml)
+
 [![PyPI Version](https://img.shields.io/pypi/v/cisv.svg)](https://pypi.org/project/cisv/)
-[PyPI Package](https://pypi.org/project/cisv/)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Python binding distribution for CISV using the nanobind implementation (`cisv`) with SIMD-accelerated core parsing.
 
-## Features
+## FEATURES
 
 - Native C-backed parser exposed to Python
 - `parse_file`, `parse_string`, and `count_rows` APIs
@@ -16,20 +18,20 @@ Python binding distribution for CISV using the nanobind implementation (`cisv`) 
 - Parallel parse mode for large files
 - Early-exit iteration support for pipeline-style processing
 
-## Supported Python Versions
+## SUPPORTED PYTHON VERSIONS
 
 - Minimum supported version: Python 3.10
 - Tested in CI on Python 3.10 and 3.12
 
-## Installation
+## INSTALLATION
 
-### From PyPI
+### FROM PYPI
 
 ```bash
 pip install cisv
 ```
 
-### From source
+### FROM SOURCE
 
 ```bash
 git clone --recurse-submodules https://github.com/Sanix-Darker/cisv-python
@@ -39,7 +41,7 @@ cd cisv
 pip install .
 ```
 
-## Core Dependency (Submodule)
+## CORE DEPENDENCY (SUBMODULE)
 
 This repository tracks `cisv-core` via the `./core` git submodule.
 
@@ -51,7 +53,7 @@ git submodule update --init --remote --recursive
 
 CI and release workflows also run this update command, so new `cisv-core` releases are pulled automatically during builds.
 
-## Quick Start
+## QUICK START
 
 ```python
 import cisv
@@ -60,9 +62,9 @@ rows = cisv.parse_file("data.csv", delimiter=",", trim=True)
 print(rows[0])
 ```
 
-## API Examples
+## API EXAMPLES
 
-### Parse a file with options
+### PARSE A FILE WITH OPTIONS
 
 ```python
 import cisv
@@ -76,7 +78,7 @@ rows = cisv.parse_file(
 )
 ```
 
-### Parse in parallel
+### PARSE IN PARALLEL
 
 ```python
 import cisv
@@ -84,7 +86,7 @@ import cisv
 rows = cisv.parse_file("large.csv", parallel=True)
 ```
 
-### Row counting without full parse
+### ROW COUNTING WITHOUT FULL PARSE
 
 ```python
 import cisv
@@ -93,7 +95,7 @@ count = cisv.count_rows("large.csv")
 print(count)
 ```
 
-### Iterator mode for huge files
+### ITERATOR MODE FOR HUGE FILES
 
 ```python
 import cisv
@@ -105,7 +107,7 @@ with cisv.CisvIterator("very_large.csv", trim=True) as it:
         # process row
 ```
 
-### Convenience iterator helper
+### CONVENIENCE ITERATOR HELPER
 
 ```python
 import cisv
@@ -114,7 +116,7 @@ for row in cisv.open_iterator("data.csv", delimiter=",", trim=True):
     print(row)
 ```
 
-## Examples Directory
+## EXAMPLES DIRECTORY
 
 Runnable examples are available in [`examples/`](./examples):
 
@@ -122,16 +124,17 @@ Runnable examples are available in [`examples/`](./examples):
 - `iterator.py`
 - `sample.csv`
 
-## Benchmarks
-![Python Benchmarks](./assets/benchmark-python.png)
+## BENCHMARKS
 
 ```bash
 docker build -t cisv-pynb-bench -f cisv/benchmarks/Dockerfile .
 docker run --rm --platform linux/amd64 --cpus=2 --memory=4g cisv-pynb-bench
 ```
 
+![Python Benchmarks](./assets/benchmark-python.png)
+
 The benchmark output includes both full parse and iterator paths (including `cisv-iterator`).
 
-## Upstream Core
+## UPSTREAM CORE
 
 - cisv-core: https://github.com/Sanix-Darker/cisv-core
