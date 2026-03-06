@@ -6,6 +6,7 @@ offering 10-100x better performance than ctypes-based bindings.
 """
 
 from typing import List, Optional, Iterator, Tuple
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 import numpy as np
 
 from ._core import (
@@ -18,7 +19,10 @@ from ._core import (
     CisvIterator,
 )
 
-__version__ = '0.2.6'
+try:
+    __version__ = _pkg_version('cisv')
+except PackageNotFoundError:
+    __version__ = '0.0.0'
 __all__ = [
     'parse_file',
     'parse_file_fast',

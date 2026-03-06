@@ -19,4 +19,10 @@ jobs:
           cd bindings/python-nanobind
           pip install -U pip
           pip install .
-          python -c "import cisv; print(cisv.__version__)"
+          python - <<'PY'
+          import cisv
+          rows = cisv.parse_string("a,b\n1,2\n")
+          assert rows[0] == ["a", "b"]
+          assert rows[1] == ["1", "2"]
+          print(cisv.__version__)
+          PY
