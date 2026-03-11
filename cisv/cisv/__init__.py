@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 CISV - High-performance CSV parser with SIMD optimizations
 
@@ -5,9 +7,11 @@ This module provides Python bindings to the CISV C library using nanobind,
 offering 10-100x better performance than ctypes-based bindings.
 """
 
-from typing import List, Optional, Iterator, Tuple
+from typing import TYPE_CHECKING, Iterator, List
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
-import numpy as np
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from ._core import (
     parse_file as _parse_file,
@@ -119,6 +123,8 @@ def parse_file(
                 path, num_threads, delimiter, quote, trim, skip_empty_lines
             )
         return _parse_file(path, delimiter, quote, trim, skip_empty_lines)
+    except ValueError:
+        raise
     except RuntimeError as e:
         raise CisvError(str(e)) from e
     except Exception as e:
@@ -159,6 +165,8 @@ def parse_string(
     """
     try:
         return _parse_string(content, delimiter, quote, trim, skip_empty_lines)
+    except ValueError:
+        raise
     except RuntimeError as e:
         raise CisvError(str(e)) from e
     except Exception as e:
@@ -307,6 +315,8 @@ def parse_file_fast(
             path, num_threads, delimiter, quote, trim, skip_empty_lines
         )
         return CisvResult(data, offsets, lengths, rows)
+    except ValueError:
+        raise
     except RuntimeError as e:
         raise CisvError(str(e)) from e
     except Exception as e:
@@ -346,6 +356,8 @@ def parse_file_benchmark(
             path, num_threads, delimiter, quote
         )
         return CisvBenchmarkResult(row_count, field_count, first_row_cols)
+    except ValueError:
+        raise
     except RuntimeError as e:
         raise CisvError(str(e)) from e
     except Exception as e:
@@ -397,6 +409,8 @@ def open_iterator(
     """
     try:
         return CisvIterator(path, delimiter, quote, trim, skip_empty_lines)
+    except ValueError:
+        raise
     except RuntimeError as e:
         raise CisvError(str(e)) from e
     except Exception as e:

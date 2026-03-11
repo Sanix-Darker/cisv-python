@@ -23,6 +23,18 @@ extern "C" {
 
 namespace nb = nanobind;
 
+static void validate_char_option(const char *name, const std::string &value) {
+    if (value.empty() || value.size() > 1) {
+        throw std::invalid_argument(std::string(name) + " must be a single character");
+    }
+}
+
+static void validate_num_threads(int num_threads) {
+    if (num_threads < 0) {
+        throw std::invalid_argument("num_threads must be >= 0");
+    }
+}
+
 /**
  * Parse a CSV file and return all rows at once.
  *
@@ -41,12 +53,8 @@ static nb::list parse_file(
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    if (delimiter.empty() || delimiter.size() > 1) {
-        throw std::invalid_argument("Delimiter must be a single character");
-    }
-    if (quote.empty() || quote.size() > 1) {
-        throw std::invalid_argument("Quote must be a single character");
-    }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
 
     // Setup config
     cisv_config config;
@@ -57,7 +65,11 @@ static nb::list parse_file(
     config.skip_empty_lines = skip_empty_lines;
 
     // Parse file using batch API
-    cisv_result_t *result = cisv_parse_file_batch(path.c_str(), &config);
+    cisv_result_t *result = nullptr;
+    {
+        nb::gil_scoped_release release;
+        result = cisv_parse_file_batch(path.c_str(), &config);
+    }
 
     if (!result) {
         throw std::runtime_error("Failed to parse file: " + std::string(strerror(errno)));
@@ -95,12 +107,8 @@ static nb::list parse_string(
     bool trim = false,
     bool skip_empty_lines = false
 ) {
-    if (delimiter.empty() || delimiter.size() > 1) {
-        throw std::invalid_argument("Delimiter must be a single character");
-    }
-    if (quote.empty() || quote.size() > 1) {
-        throw std::invalid_argument("Quote must be a single character");
-    }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
 
     // Setup config
     cisv_config config;
@@ -111,7 +119,11 @@ static nb::list parse_string(
     config.skip_empty_lines = skip_empty_lines;
 
     // Parse string using batch API
-    cisv_result_t *result = cisv_parse_string_batch(data.c_str(), data.size(), &config);
+    cisv_result_t *result = nullptr;
+    {
+        nb::gil_scoped_release release;
+        result = cisv_parse_string_batch(data.c_str(), data.size(), &config);
+    }
 
     if (!result) {
         throw std::runtime_error("Failed to parse string: " + std::string(strerror(errno)));
@@ -155,12 +167,9 @@ static nb::list parse_file_parallel(
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    if (delimiter.empty() || delimiter.size() > 1) {
-        throw std::invalid_argument("Delimiter must be a single character");
-    }
-    if (quote.empty() || quote.size() > 1) {
-        throw std::invalid_argument("Quote must be a single character");
-    }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
+    validate_num_threads(num_threads);
 
     // Setup config
     cisv_config config;
@@ -227,12 +236,9 @@ static nb::tuple parse_file_raw(
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    if (delimiter.empty() || delimiter.size() > 1) {
-        throw std::invalid_argument("Delimiter must be a single character");
-    }
-    if (quote.empty() || quote.size() > 1) {
-        throw std::invalid_argument("Quote must be a single character");
-    }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
+    validate_num_threads(num_threads);
 
     // Setup config
     cisv_config config;
@@ -377,12 +383,9 @@ static nb::tuple parse_file_count_only(
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    if (delimiter.empty() || delimiter.size() > 1) {
-        throw std::invalid_argument("Delimiter must be a single character");
-    }
-    if (quote.empty() || quote.size() > 1) {
-        throw std::invalid_argument("Quote must be a single character");
-    }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
+    validate_num_threads(num_threads);
 
     // Setup config
     cisv_config config;
@@ -436,7 +439,12 @@ static size_t count_rows(const std::string &path) {
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    return cisv_parser_count_rows(path.c_str());
+    size_t row_count = 0;
+    {
+        nb::gil_scoped_release release;
+        row_count = cisv_parser_count_rows(path.c_str());
+    }
+    return row_count;
 }
 
 /**
@@ -462,12 +470,8 @@ public:
         if (path.empty()) {
             throw std::invalid_argument("Path cannot be empty");
         }
-        if (delimiter.empty() || delimiter.size() > 1) {
-            throw std::invalid_argument("Delimiter must be a single character");
-        }
-        if (quote.empty() || quote.size() > 1) {
-            throw std::invalid_argument("Quote must be a single character");
-        }
+        validate_char_option("Delimiter", delimiter);
+        validate_char_option("Quote", quote);
 
         cisv_config config;
         cisv_config_init(&config);
@@ -476,7 +480,10 @@ public:
         config.trim = trim;
         config.skip_empty_lines = skip_empty_lines;
 
-        it_ = cisv_iterator_open(path.c_str(), &config);
+        {
+            nb::gil_scoped_release release;
+            it_ = cisv_iterator_open(path.c_str(), &config);
+        }
         if (!it_) {
             throw std::runtime_error("Failed to open file: " + path);
         }
@@ -502,7 +509,11 @@ public:
         const size_t *lengths;
         size_t field_count;
 
-        int result = cisv_iterator_next(it_, &fields, &lengths, &field_count);
+        int result;
+        {
+            nb::gil_scoped_release release;
+            result = cisv_iterator_next(it_, &fields, &lengths, &field_count);
+        }
 
         if (result == CISV_ITER_EOF) {
             return nb::none();
