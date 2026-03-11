@@ -371,7 +371,8 @@ def main():
         file_size = os.path.getsize(filepath)
         print(f"Using existing file: {filepath} ({file_size / (1024**2):.1f} MB)")
     else:
-        filepath = tempfile.mktemp(suffix='.csv')
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as tmp:
+            filepath = tmp.name
         file_size = generate_csv(filepath, args.rows, args.cols)
 
     print(f"\n{'='*60}")
