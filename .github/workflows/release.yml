@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
       - name: Update cisv-core submodule to latest main
         run: git submodule update --init --remote --recursive
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Prepare version and sources
