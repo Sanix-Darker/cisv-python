@@ -44,7 +44,7 @@ jobs:
           pip install build
           python -m build --sdist
       - name: Build manylinux wheel
-        uses: pypa/cibuildwheel@v3.4.0
+        uses: pypa/cibuildwheel@v3.4.1
         env:
           CIBW_BUILD: cp312-manylinux_x86_64
           CIBW_SKIP: "pp* *-musllinux*"
