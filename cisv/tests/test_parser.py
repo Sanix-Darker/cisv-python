@@ -118,6 +118,15 @@ class TestParseString:
             ["4", "5", "6"],
         ]
 
+    def test_cr_only_line_endings(self):
+        """Test parsing CR-only rows while preserving quoted CR data."""
+        data = 'a,b\r"line1\rline2",c\r'
+        rows = cisv.parse_string(data)
+        assert rows == [
+            ["a", "b"],
+            ["line1\rline2", "c"],
+        ]
+
     def test_empty_fields(self):
         """Test parsing empty fields."""
         # Note: Trailing comma on last line without newline may not produce
@@ -271,6 +280,14 @@ class TestCountRows:
         count = cisv.count_rows(str(csv_file))
         assert count == 1
 
+    def test_count_cr_only_line_endings(self, tmp_path):
+        """Test counting rows with CR-only line endings."""
+        csv_file = tmp_path / "cr_only.csv"
+        csv_file.write_text('a,b\r"line1\rline2",c\r')
+
+        count = cisv.count_rows(str(csv_file))
+        assert count == 2
+
     def test_count_large_file(self, tmp_path):
         """Test counting rows in a larger file."""
         csv_file = tmp_path / "large.csv"
@@ -355,6 +372,14 @@ class TestIterator:
 
         rows = list(cisv.open_iterator(str(csv_file), skip_empty_lines=True))
         assert rows == [["a", "b", "c"], ["", "", ""], ["1", "2", "3"]]
+
+    def test_iterator_cr_only_line_endings(self, tmp_path):
+        """Test iterator supports CR-only rows."""
+        csv_file = tmp_path / "iterator_cr_only.csv"
+        csv_file.write_text('a,b\r"line1\rline2",c\r')
+
+        rows = list(cisv.open_iterator(str(csv_file)))
+        assert rows == [["a", "b"], ["line1\rline2", "c"]]
 
     def test_iterator_max_row_size(self, tmp_path):
         """Test iterator enforces max_row_size."""
