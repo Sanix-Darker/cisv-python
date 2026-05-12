@@ -20,7 +20,7 @@ from ._core import (
     parse_file_raw as _parse_file_raw,
     parse_file_count_only as _parse_file_count_only,
     count_rows,
-    CisvIterator,
+    CisvIterator as _NativeCisvIterator,
 )
 
 try:
@@ -74,6 +74,81 @@ class CisvBenchmarkResult:
 class CisvError(Exception):
     """Base exception for CISV errors."""
     pass
+
+
+class CisvIterator:
+    """Python iterator wrapper that normalizes native runtime errors."""
+
+    __slots__ = ('_native',)
+
+    def __init__(
+        self,
+        path: str,
+        delimiter: str = ',',
+        quote: str = '"',
+        trim: bool = False,
+        skip_empty_lines: bool = False,
+        escape: str = '',
+        comment: str = '',
+        relaxed: bool = False,
+        skip_lines_with_error: bool = False,
+        max_row_size: int = 0,
+        from_line: int = 1,
+        to_line: int = 0,
+    ) -> None:
+        try:
+            self._native = _NativeCisvIterator(
+                path,
+                delimiter,
+                quote,
+                trim,
+                skip_empty_lines,
+                escape,
+                comment,
+                relaxed,
+                skip_lines_with_error,
+                max_row_size,
+                from_line,
+                to_line,
+            )
+        except ValueError:
+            raise
+        except RuntimeError as e:
+            raise CisvError(str(e)) from e
+
+    def next(self) -> List[str] | None:
+        try:
+            return self._native.next()
+        except RuntimeError as e:
+            raise CisvError(str(e)) from e
+
+    def close(self) -> None:
+        self._native.close()
+
+    @property
+    def closed(self) -> bool:
+        return self._native.closed
+
+    def __iter__(self) -> "CisvIterator":
+        return self
+
+    def __next__(self) -> List[str]:
+        row = self.next()
+        if row is None:
+            raise StopIteration
+        return row
+
+    def __enter__(self) -> "CisvIterator":
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type | None,
+        exc_val: BaseException | None,
+        exc_tb: object | None,
+    ) -> bool:
+        self.close()
+        return False
 
 
 def parse_file(
@@ -423,6 +498,13 @@ def open_iterator(
     *,
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = '',
+    comment: str = '',
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> CisvIterator:
     """
     Open a CSV file for row-by-row iteration.
@@ -437,6 +519,13 @@ def open_iterator(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character
+        comment: Optional comment character
+        relaxed: Keep parsing through relaxed quote errors when core supports it
+        skip_lines_with_error: Skip malformed rows when core supports it
+        max_row_size: Maximum row size in bytes, 0 for default/adaptive
+        from_line: First 1-based line to return
+        to_line: Last 1-based line to return, 0 for no upper bound
 
     Returns:
         CisvIterator that can be used with for-loops or as a context manager.
@@ -460,7 +549,20 @@ def open_iterator(
         ...     print(row[0])
     """
     try:
-        return CisvIterator(path, delimiter, quote, trim, skip_empty_lines)
+        return CisvIterator(
+            path,
+            delimiter,
+            quote,
+            trim,
+            skip_empty_lines,
+            escape,
+            comment,
+            relaxed,
+            skip_lines_with_error,
+            max_row_size,
+            from_line,
+            to_line,
+        )
     except ValueError:
         raise
     except RuntimeError as e:

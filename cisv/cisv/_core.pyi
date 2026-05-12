@@ -200,6 +200,13 @@ class CisvIterator:
         quote: str = '"',
         trim: bool = False,
         skip_empty_lines: bool = False,
+        escape: str = "",
+        comment: str = "",
+        relaxed: bool = False,
+        skip_lines_with_error: bool = False,
+        max_row_size: int = 0,
+        from_line: int = 1,
+        to_line: int = 0,
     ) -> None:
         """
         Create a new CSV iterator.
@@ -210,6 +217,13 @@ class CisvIterator:
             quote: Quote character (default: '"')
             trim: Whether to trim whitespace from fields
             skip_empty_lines: Whether to skip empty lines
+            escape: Optional escape character
+            comment: Optional comment character
+            relaxed: Keep parsing through relaxed quote errors when core supports it
+            skip_lines_with_error: Skip malformed rows when core supports it
+            max_row_size: Maximum row size in bytes, 0 for default/adaptive
+            from_line: First 1-based line to return
+            to_line: Last 1-based line to return, 0 for no upper bound
         """
         ...
 

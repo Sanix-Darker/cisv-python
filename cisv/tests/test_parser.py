@@ -327,6 +327,58 @@ class TestCountRows:
             cisv.count_rows(str(csv_file), escape=",")
 
 
+class TestIterator:
+    """Tests for streaming iterator API."""
+
+    def test_iterator_full_config(self, tmp_path):
+        """Test iterator with escape, comments, trimming, and line controls."""
+        csv_file = tmp_path / "iterator_config.csv"
+        csv_file.write_text('  #skip\nid,msg\n1,"hello \\"quoted\\""\n2,tail\n')
+
+        with cisv.open_iterator(
+            str(csv_file),
+            escape="\\",
+            comment="#",
+            trim=True,
+            from_line=1,
+            to_line=3,
+        ) as reader:
+            rows = list(reader)
+
+        assert rows == [["id", "msg"], ["1", 'hello "quoted"']]
+        assert reader.closed
+
+    def test_iterator_skip_empty_preserves_empty_fields(self, tmp_path):
+        """Test iterator skip_empty_lines keeps rows containing empty fields."""
+        csv_file = tmp_path / "iterator_empty.csv"
+        csv_file.write_text("a,b,c\n\n,,\n1,2,3\n")
+
+        rows = list(cisv.open_iterator(str(csv_file), skip_empty_lines=True))
+        assert rows == [["a", "b", "c"], ["", "", ""], ["1", "2", "3"]]
+
+    def test_iterator_max_row_size(self, tmp_path):
+        """Test iterator enforces max_row_size."""
+        csv_file = tmp_path / "iterator_max.csv"
+        csv_file.write_text("a,b\n123456789,2\n")
+
+        with pytest.raises(cisv.CisvError):
+            list(cisv.open_iterator(str(csv_file), max_row_size=8))
+
+    def test_iterator_validation(self, tmp_path):
+        """Test iterator option validation uses shared config rules."""
+        csv_file = tmp_path / "iterator_validate.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        with pytest.raises(ValueError):
+            cisv.open_iterator(str(csv_file), escape="xx")
+        with pytest.raises(ValueError):
+            cisv.open_iterator(str(csv_file), from_line=3, to_line=2)
+        with pytest.raises(ValueError):
+            cisv.open_iterator(str(csv_file), delimiter='"')
+        with pytest.raises(ValueError):
+            cisv.open_iterator(str(csv_file), escape=",")
+
+
 class TestEdgeCases:
     """Tests for edge cases."""
 

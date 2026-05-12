@@ -566,21 +566,22 @@ public:
                  const std::string &delimiter = ",",
                  const std::string &quote = "\"",
                  bool trim = false,
-                 bool skip_empty_lines = false)
+                 bool skip_empty_lines = false,
+                 const std::string &escape = "",
+                 const std::string &comment = "",
+                 bool relaxed = false,
+                 bool skip_lines_with_error = false,
+                 size_t max_row_size = 0,
+                 int from_line = 1,
+                 int to_line = 0)
         : it_(nullptr), closed_(false), path_(path)
     {
         if (path.empty()) {
             throw std::invalid_argument("Path cannot be empty");
         }
-        validate_char_option("Delimiter", delimiter);
-        validate_char_option("Quote", quote);
-
-        cisv_config config;
-        cisv_config_init(&config);
-        config.delimiter = delimiter[0];
-        config.quote = quote[0];
-        config.trim = trim;
-        config.skip_empty_lines = skip_empty_lines;
+        cisv_config config = make_config(
+            delimiter, quote, escape, comment, trim, skip_empty_lines,
+            relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
         {
             nb::gil_scoped_release release;
@@ -692,19 +693,35 @@ NB_MODULE(_core, m) {
         "            if row[0] == 'stop':\n"
         "                break  # Early exit - no wasted work")
         .def(nb::init<const std::string &, const std::string &,
-                      const std::string &, bool, bool>(),
+                      const std::string &, bool, bool,
+                      const std::string &, const std::string &,
+                      bool, bool, size_t, int, int>(),
              nb::arg("path"),
              nb::arg("delimiter") = ",",
              nb::arg("quote") = "\"",
              nb::arg("trim") = false,
              nb::arg("skip_empty_lines") = false,
+             nb::arg("escape") = "",
+             nb::arg("comment") = "",
+             nb::arg("relaxed") = false,
+             nb::arg("skip_lines_with_error") = false,
+             nb::arg("max_row_size") = 0,
+             nb::arg("from_line") = 1,
+             nb::arg("to_line") = 0,
              "Create a new CSV iterator.\n\n"
              "Args:\n"
              "    path: Path to the CSV file\n"
              "    delimiter: Field delimiter character (default: ',')\n"
              "    quote: Quote character (default: '\"')\n"
              "    trim: Whether to trim whitespace from fields\n"
-             "    skip_empty_lines: Whether to skip empty lines")
+             "    skip_empty_lines: Whether to skip empty lines\n"
+             "    escape: Optional escape character\n"
+             "    comment: Optional comment character\n"
+             "    relaxed: Keep parsing through relaxed quote errors when core supports it\n"
+             "    skip_lines_with_error: Skip malformed rows when core supports it\n"
+             "    max_row_size: Maximum row size in bytes, 0 for default/adaptive\n"
+             "    from_line: First 1-based line to return\n"
+             "    to_line: Last 1-based line to return, 0 for no upper bound")
         .def("next", &CisvIterator::next,
              "Get the next row as a list of strings, or None if at end of file.")
         .def("close", &CisvIterator::close,
