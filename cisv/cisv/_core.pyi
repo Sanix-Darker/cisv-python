@@ -91,14 +91,38 @@ def parse_file_raw(
     """
     ...
 
-def count_rows(path: str) -> int:
+def count_rows(
+    path: str,
+    delimiter: str = ",",
+    quote: str = '"',
+    escape: str = "",
+    comment: str = "",
+    trim: bool = False,
+    skip_empty_lines: bool = False,
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
+) -> int:
     """
     Count the number of rows in a CSV file without full parsing.
 
-    This is very fast as it only scans for newlines using SIMD.
+    This uses core fast paths for simple, quoted, and semantic row-control counts.
 
     Args:
         path: Path to the CSV file
+        delimiter: Field delimiter character
+        quote: Quote character
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        trim: Trim unquoted fields before comment checks
+        skip_empty_lines: Skip physically empty rows
+        relaxed: Keep counting through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to count
+        to_line: Last 1-based line to count, 0 for no upper bound
 
     Returns:
         Number of rows in the file

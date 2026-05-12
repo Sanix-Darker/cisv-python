@@ -218,6 +218,47 @@ class TestCountRows:
         count = cisv.count_rows(str(csv_file))
         assert count == 10000
 
+    def test_count_semantic_controls(self, tmp_path):
+        """Test counting with comment, trim, and skip-empty controls."""
+        csv_file = tmp_path / "controls.csv"
+        csv_file.write_text('  #skip\n\nh1,h2\n,,\n"#keep",x\n')
+
+        count = cisv.count_rows(
+            str(csv_file),
+            comment="#",
+            trim=True,
+            skip_empty_lines=True,
+        )
+        assert count == 3
+
+    def test_count_line_range(self, tmp_path):
+        """Test counting with line range controls."""
+        csv_file = tmp_path / "range.csv"
+        csv_file.write_text("a\nb\nc\nd\n")
+
+        count = cisv.count_rows(str(csv_file), from_line=2, to_line=3)
+        assert count == 2
+
+    def test_count_custom_escape(self, tmp_path):
+        """Test counting quoted multiline rows with custom escape."""
+        csv_file = tmp_path / "escape.csv"
+        csv_file.write_text('id,payload\n1,"line1\\\nline2 with \\"quote\\""\n')
+
+        count = cisv.count_rows(str(csv_file), escape="\\")
+        assert count == 2
+
+    def test_count_option_validation(self, tmp_path):
+        """Test validation for count options."""
+        csv_file = tmp_path / "validate.csv"
+        csv_file.write_text("a,b\n1,2\n")
+
+        with pytest.raises(ValueError):
+            cisv.count_rows(str(csv_file), escape="xx")
+        with pytest.raises(ValueError):
+            cisv.count_rows(str(csv_file), from_line=-1)
+        with pytest.raises(ValueError):
+            cisv.count_rows(str(csv_file), from_line=3, to_line=2)
+
 
 class TestEdgeCases:
     """Tests for edge cases."""

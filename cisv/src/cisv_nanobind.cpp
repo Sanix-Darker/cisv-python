@@ -29,6 +29,12 @@ static void validate_char_option(const char *name, const std::string &value) {
     }
 }
 
+static void validate_optional_char_option(const char *name, const std::string &value) {
+    if (value.size() > 1) {
+        throw std::invalid_argument(std::string(name) + " must be empty or a single character");
+    }
+}
+
 static void validate_num_threads(int num_threads) {
     if (num_threads < 0) {
         throw std::invalid_argument("num_threads must be >= 0");
@@ -435,14 +441,56 @@ static nb::tuple parse_file_count_only(
  * Count the number of rows in a CSV file without full parsing.
  * This is very fast as it only scans for newlines.
  */
-static size_t count_rows(const std::string &path) {
+static size_t count_rows(
+    const std::string &path,
+    const std::string &delimiter = ",",
+    const std::string &quote = "\"",
+    const std::string &escape = "",
+    const std::string &comment = "",
+    bool trim = false,
+    bool skip_empty_lines = false,
+    bool relaxed = false,
+    bool skip_lines_with_error = false,
+    size_t max_row_size = 0,
+    int from_line = 1,
+    int to_line = 0
+) {
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
+    validate_optional_char_option("Escape", escape);
+    validate_optional_char_option("Comment", comment);
+    if (from_line < 0) {
+        throw std::invalid_argument("from_line must be >= 0");
+    }
+    if (to_line < 0) {
+        throw std::invalid_argument("to_line must be >= 0");
+    }
+    int effective_from = from_line > 0 ? from_line : 1;
+    if (to_line != 0 && to_line < effective_from) {
+        throw std::invalid_argument("to_line must be >= from_line");
+    }
+
+    cisv_config config;
+    cisv_config_init(&config);
+    config.delimiter = delimiter[0];
+    config.quote = quote[0];
+    config.escape = escape.empty() ? '\0' : escape[0];
+    config.comment = comment.empty() ? '\0' : comment[0];
+    config.trim = trim;
+    config.skip_empty_lines = skip_empty_lines;
+    config.relaxed = relaxed;
+    config.skip_lines_with_error = skip_lines_with_error;
+    config.max_row_size = max_row_size;
+    config.from_line = from_line;
+    config.to_line = to_line;
+
     size_t row_count = 0;
     {
         nb::gil_scoped_release release;
-        row_count = cisv_parser_count_rows(path.c_str());
+        row_count = cisv_parser_count_rows_with_config(path.c_str(), &config);
     }
     return row_count;
 }
@@ -694,10 +742,32 @@ NB_MODULE(_core, m) {
 
     m.def("count_rows", &count_rows,
           nb::arg("path"),
+          nb::arg("delimiter") = ",",
+          nb::arg("quote") = "\"",
+          nb::arg("escape") = "",
+          nb::arg("comment") = "",
+          nb::arg("trim") = false,
+          nb::arg("skip_empty_lines") = false,
+          nb::arg("relaxed") = false,
+          nb::arg("skip_lines_with_error") = false,
+          nb::arg("max_row_size") = 0,
+          nb::arg("from_line") = 1,
+          nb::arg("to_line") = 0,
           "Count the number of rows in a CSV file without full parsing.\n\n"
-          "This is very fast as it only scans for newlines using SIMD.\n\n"
+          "This uses core fast paths for simple, quoted, and semantic row-control counts.\n\n"
           "Args:\n"
-          "    path: Path to the CSV file\n\n"
+          "    path: Path to the CSV file\n"
+          "    delimiter: Field delimiter character\n"
+          "    quote: Quote character\n"
+          "    escape: Optional escape character, empty string for RFC doubled quotes\n"
+          "    comment: Optional comment prefix character\n"
+          "    trim: Trim unquoted fields before comment checks\n"
+          "    skip_empty_lines: Skip physically empty rows\n"
+          "    relaxed: Keep counting through relaxed parse errors when core supports it\n"
+          "    skip_lines_with_error: Skip malformed lines when core supports it\n"
+          "    max_row_size: Maximum row size, 0 for default/adaptive core behavior\n"
+          "    from_line: First 1-based line to count\n"
+          "    to_line: Last 1-based line to count, 0 for no upper bound\n\n"
           "Returns:\n"
           "    Number of rows in the file");
 }
