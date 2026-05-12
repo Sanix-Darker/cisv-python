@@ -364,6 +364,18 @@ class TestIterator:
         with pytest.raises(cisv.CisvError):
             list(cisv.open_iterator(str(csv_file), max_row_size=8))
 
+    def test_iterator_malformed_quote_errors(self, tmp_path):
+        """Test iterator rejects strict malformed quoted fields."""
+        bad_after_quote = tmp_path / "iterator_bad_after_quote.csv"
+        bad_after_quote.write_text('"a"x,b\n')
+        bad_unterminated = tmp_path / "iterator_bad_unterminated.csv"
+        bad_unterminated.write_text('"unterminated\n')
+
+        with pytest.raises(cisv.CisvError):
+            list(cisv.open_iterator(str(bad_after_quote)))
+        with pytest.raises(cisv.CisvError):
+            list(cisv.open_iterator(str(bad_unterminated)))
+
     def test_iterator_validation(self, tmp_path):
         """Test iterator option validation uses shared config rules."""
         csv_file = tmp_path / "iterator_validate.csv"
