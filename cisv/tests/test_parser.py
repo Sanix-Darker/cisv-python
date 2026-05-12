@@ -87,6 +87,14 @@ class TestParseString:
         rows = cisv.parse_string(data, escape="\\")
         assert rows == [["id", "msg"], ["1", 'hello "quoted" value']]
 
+    def test_bare_quote_strict_and_relaxed(self):
+        """Test bare quote strict rejection and relaxed compatibility."""
+        with pytest.raises(cisv.CisvError):
+            cisv.parse_string('a"b,c\n')
+
+        rows = cisv.parse_string('a"b,c\n', relaxed=True)
+        assert rows == [['a"b', "c"]]
+
     def test_comment_and_range_controls(self):
         """Test comment and line range controls."""
         data = "  #skip\nh1,h2\n1,2\n3,4\n"
@@ -327,6 +335,14 @@ class TestCountRows:
         count = cisv.count_rows(str(csv_file), escape="\\")
         assert count == 2
 
+    def test_count_bare_quote_strict_and_relaxed(self, tmp_path):
+        """Test count_rows rejects strict bare quotes and counts relaxed input."""
+        csv_file = tmp_path / "bare_quote.csv"
+        csv_file.write_text('a"b,c\n')
+
+        assert cisv.count_rows(str(csv_file)) == 0
+        assert cisv.count_rows(str(csv_file), relaxed=True) == 1
+
     def test_count_option_validation(self, tmp_path):
         """Test validation for count options."""
         csv_file = tmp_path / "validate.csv"
@@ -400,6 +416,17 @@ class TestIterator:
             list(cisv.open_iterator(str(bad_after_quote)))
         with pytest.raises(cisv.CisvError):
             list(cisv.open_iterator(str(bad_unterminated)))
+
+    def test_iterator_bare_quote_strict_and_relaxed(self, tmp_path):
+        """Test iterator bare quote strict rejection and relaxed compatibility."""
+        csv_file = tmp_path / "iterator_bare_quote.csv"
+        csv_file.write_text('a"b,c\n')
+
+        with pytest.raises(cisv.CisvError):
+            list(cisv.open_iterator(str(csv_file)))
+
+        rows = list(cisv.open_iterator(str(csv_file), relaxed=True))
+        assert rows == [['a"b', "c"]]
 
     def test_iterator_validation(self, tmp_path):
         """Test iterator option validation uses shared config rules."""
