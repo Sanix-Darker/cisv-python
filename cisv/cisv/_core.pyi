@@ -10,6 +10,13 @@ def parse_file(
     quote: str = '"',
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = "",
+    comment: str = "",
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> List[List[str]]:
     """
     Parse a CSV file and return all rows as a list of lists.
@@ -20,6 +27,13 @@ def parse_file(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
 
     Returns:
         List of rows, where each row is a list of field values
@@ -32,6 +46,13 @@ def parse_string(
     quote: str = '"',
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = "",
+    comment: str = "",
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> List[List[str]]:
     """
     Parse a CSV string and return all rows as a list of lists.
@@ -42,6 +63,13 @@ def parse_string(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
 
     Returns:
         List of rows, where each row is a list of field values
@@ -55,6 +83,13 @@ def parse_file_parallel(
     quote: str = '"',
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = "",
+    comment: str = "",
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> List[List[str]]:
     """
     Parse a CSV file using multiple threads for maximum performance.
@@ -66,6 +101,13 @@ def parse_file_parallel(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
 
     Returns:
         List of rows, where each row is a list of field values
@@ -79,6 +121,13 @@ def parse_file_raw(
     quote: str = '"',
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = "",
+    comment: str = "",
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> Tuple[npt.NDArray[np.uint8], npt.NDArray[np.uint64], npt.NDArray[np.uint32], npt.NDArray[np.uint64]]:
     """
     Ultra-fast parallel parsing that returns raw numpy arrays.

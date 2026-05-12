@@ -27,11 +27,17 @@ static void validate_char_option(const char *name, const std::string &value) {
     if (value.empty() || value.size() > 1) {
         throw std::invalid_argument(std::string(name) + " must be a single character");
     }
+    if (value[0] == '\0' || value[0] == '\n' || value[0] == '\r') {
+        throw std::invalid_argument(std::string(name) + " cannot be NUL or newline");
+    }
 }
 
 static void validate_optional_char_option(const char *name, const std::string &value) {
     if (value.size() > 1) {
         throw std::invalid_argument(std::string(name) + " must be empty or a single character");
+    }
+    if (!value.empty() && (value[0] == '\0' || value[0] == '\n' || value[0] == '\r')) {
+        throw std::invalid_argument(std::string(name) + " cannot be NUL or newline");
     }
 }
 
@@ -39,6 +45,71 @@ static void validate_num_threads(int num_threads) {
     if (num_threads < 0) {
         throw std::invalid_argument("num_threads must be >= 0");
     }
+}
+
+static cisv_config make_config(
+    const std::string &delimiter,
+    const std::string &quote,
+    const std::string &escape,
+    const std::string &comment,
+    bool trim,
+    bool skip_empty_lines,
+    bool relaxed,
+    bool skip_lines_with_error,
+    size_t max_row_size,
+    int from_line,
+    int to_line
+) {
+    validate_char_option("Delimiter", delimiter);
+    validate_char_option("Quote", quote);
+    validate_optional_char_option("Escape", escape);
+    validate_optional_char_option("Comment", comment);
+
+    if (from_line < 0) {
+        throw std::invalid_argument("from_line must be >= 0");
+    }
+    if (to_line < 0) {
+        throw std::invalid_argument("to_line must be >= 0");
+    }
+
+    int effective_from = from_line > 0 ? from_line : 1;
+    if (to_line != 0 && to_line < effective_from) {
+        throw std::invalid_argument("to_line must be >= from_line");
+    }
+
+    char delimiter_char = delimiter[0];
+    char quote_char = quote[0];
+    char escape_char = escape.empty() ? '\0' : escape[0];
+    char comment_char = comment.empty() ? '\0' : comment[0];
+
+    if (delimiter_char == quote_char) {
+        throw std::invalid_argument("delimiter and quote cannot be the same");
+    }
+    if (escape_char != '\0' && escape_char == delimiter_char) {
+        throw std::invalid_argument("escape and delimiter cannot be the same");
+    }
+    if (escape_char != '\0' && escape_char == quote_char) {
+        throw std::invalid_argument("escape and quote cannot be the same");
+    }
+    if (comment_char != '\0' &&
+        (comment_char == delimiter_char || comment_char == quote_char || comment_char == escape_char)) {
+        throw std::invalid_argument("comment cannot conflict with delimiter, quote, or escape");
+    }
+
+    cisv_config config;
+    cisv_config_init(&config);
+    config.delimiter = delimiter_char;
+    config.quote = quote_char;
+    config.escape = escape_char;
+    config.comment = comment_char;
+    config.trim = trim;
+    config.skip_empty_lines = skip_empty_lines;
+    config.relaxed = relaxed;
+    config.skip_lines_with_error = skip_lines_with_error;
+    config.max_row_size = max_row_size;
+    config.from_line = from_line;
+    config.to_line = to_line;
+    return config;
 }
 
 /**
@@ -53,22 +124,24 @@ static nb::list parse_file(
     const std::string &delimiter = ",",
     const std::string &quote = "\"",
     bool trim = false,
-    bool skip_empty_lines = false
+    bool skip_empty_lines = false,
+    const std::string &escape = "",
+    const std::string &comment = "",
+    bool relaxed = false,
+    bool skip_lines_with_error = false,
+    size_t max_row_size = 0,
+    int from_line = 1,
+    int to_line = 0
 ) {
     // Validate inputs
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    validate_char_option("Delimiter", delimiter);
-    validate_char_option("Quote", quote);
 
     // Setup config
-    cisv_config config;
-    cisv_config_init(&config);
-    config.delimiter = delimiter[0];
-    config.quote = quote[0];
-    config.trim = trim;
-    config.skip_empty_lines = skip_empty_lines;
+    cisv_config config = make_config(
+        delimiter, quote, escape, comment, trim, skip_empty_lines,
+        relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
     // Parse file using batch API
     cisv_result_t *result = nullptr;
@@ -111,18 +184,19 @@ static nb::list parse_string(
     const std::string &delimiter = ",",
     const std::string &quote = "\"",
     bool trim = false,
-    bool skip_empty_lines = false
+    bool skip_empty_lines = false,
+    const std::string &escape = "",
+    const std::string &comment = "",
+    bool relaxed = false,
+    bool skip_lines_with_error = false,
+    size_t max_row_size = 0,
+    int from_line = 1,
+    int to_line = 0
 ) {
-    validate_char_option("Delimiter", delimiter);
-    validate_char_option("Quote", quote);
-
     // Setup config
-    cisv_config config;
-    cisv_config_init(&config);
-    config.delimiter = delimiter[0];
-    config.quote = quote[0];
-    config.trim = trim;
-    config.skip_empty_lines = skip_empty_lines;
+    cisv_config config = make_config(
+        delimiter, quote, escape, comment, trim, skip_empty_lines,
+        relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
     // Parse string using batch API
     cisv_result_t *result = nullptr;
@@ -168,22 +242,24 @@ static nb::list parse_file_parallel(
     const std::string &delimiter = ",",
     const std::string &quote = "\"",
     bool trim = false,
-    bool skip_empty_lines = false
+    bool skip_empty_lines = false,
+    const std::string &escape = "",
+    const std::string &comment = "",
+    bool relaxed = false,
+    bool skip_lines_with_error = false,
+    size_t max_row_size = 0,
+    int from_line = 1,
+    int to_line = 0
 ) {
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    validate_char_option("Delimiter", delimiter);
-    validate_char_option("Quote", quote);
     validate_num_threads(num_threads);
 
     // Setup config
-    cisv_config config;
-    cisv_config_init(&config);
-    config.delimiter = delimiter[0];
-    config.quote = quote[0];
-    config.trim = trim;
-    config.skip_empty_lines = skip_empty_lines;
+    cisv_config config = make_config(
+        delimiter, quote, escape, comment, trim, skip_empty_lines,
+        relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
     // Release GIL during C parsing
     int result_count = 0;
@@ -237,22 +313,24 @@ static nb::tuple parse_file_raw(
     const std::string &delimiter = ",",
     const std::string &quote = "\"",
     bool trim = false,
-    bool skip_empty_lines = false
+    bool skip_empty_lines = false,
+    const std::string &escape = "",
+    const std::string &comment = "",
+    bool relaxed = false,
+    bool skip_lines_with_error = false,
+    size_t max_row_size = 0,
+    int from_line = 1,
+    int to_line = 0
 ) {
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    validate_char_option("Delimiter", delimiter);
-    validate_char_option("Quote", quote);
     validate_num_threads(num_threads);
 
     // Setup config
-    cisv_config config;
-    cisv_config_init(&config);
-    config.delimiter = delimiter[0];
-    config.quote = quote[0];
-    config.trim = trim;
-    config.skip_empty_lines = skip_empty_lines;
+    cisv_config config = make_config(
+        delimiter, quote, escape, comment, trim, skip_empty_lines,
+        relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
     // Parse file with parallel processing
     int result_count = 0;
@@ -458,34 +536,10 @@ static size_t count_rows(
     if (path.empty()) {
         throw std::invalid_argument("Path cannot be empty");
     }
-    validate_char_option("Delimiter", delimiter);
-    validate_char_option("Quote", quote);
-    validate_optional_char_option("Escape", escape);
-    validate_optional_char_option("Comment", comment);
-    if (from_line < 0) {
-        throw std::invalid_argument("from_line must be >= 0");
-    }
-    if (to_line < 0) {
-        throw std::invalid_argument("to_line must be >= 0");
-    }
-    int effective_from = from_line > 0 ? from_line : 1;
-    if (to_line != 0 && to_line < effective_from) {
-        throw std::invalid_argument("to_line must be >= from_line");
-    }
 
-    cisv_config config;
-    cisv_config_init(&config);
-    config.delimiter = delimiter[0];
-    config.quote = quote[0];
-    config.escape = escape.empty() ? '\0' : escape[0];
-    config.comment = comment.empty() ? '\0' : comment[0];
-    config.trim = trim;
-    config.skip_empty_lines = skip_empty_lines;
-    config.relaxed = relaxed;
-    config.skip_lines_with_error = skip_lines_with_error;
-    config.max_row_size = max_row_size;
-    config.from_line = from_line;
-    config.to_line = to_line;
+    cisv_config config = make_config(
+        delimiter, quote, escape, comment, trim, skip_empty_lines,
+        relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
     size_t row_count = 0;
     {
@@ -671,13 +725,27 @@ NB_MODULE(_core, m) {
           nb::arg("quote") = "\"",
           nb::arg("trim") = false,
           nb::arg("skip_empty_lines") = false,
+          nb::arg("escape") = "",
+          nb::arg("comment") = "",
+          nb::arg("relaxed") = false,
+          nb::arg("skip_lines_with_error") = false,
+          nb::arg("max_row_size") = 0,
+          nb::arg("from_line") = 1,
+          nb::arg("to_line") = 0,
           "Parse a CSV file and return all rows as a list of lists.\n\n"
           "Args:\n"
           "    path: Path to the CSV file\n"
           "    delimiter: Field delimiter character (default: ',')\n"
           "    quote: Quote character (default: '\"')\n"
           "    trim: Whether to trim whitespace from fields\n"
-          "    skip_empty_lines: Whether to skip empty lines\n\n"
+          "    skip_empty_lines: Whether to skip empty lines\n"
+          "    escape: Optional escape character, empty string for RFC doubled quotes\n"
+          "    comment: Optional comment prefix character\n"
+          "    relaxed: Keep parsing through relaxed parse errors when core supports it\n"
+          "    skip_lines_with_error: Skip malformed lines when core supports it\n"
+          "    max_row_size: Maximum row size, 0 for default/adaptive core behavior\n"
+          "    from_line: First 1-based line to parse\n"
+          "    to_line: Last 1-based line to parse, 0 for no upper bound\n\n"
           "Returns:\n"
           "    List of rows, where each row is a list of field values");
 
@@ -687,13 +755,27 @@ NB_MODULE(_core, m) {
           nb::arg("quote") = "\"",
           nb::arg("trim") = false,
           nb::arg("skip_empty_lines") = false,
+          nb::arg("escape") = "",
+          nb::arg("comment") = "",
+          nb::arg("relaxed") = false,
+          nb::arg("skip_lines_with_error") = false,
+          nb::arg("max_row_size") = 0,
+          nb::arg("from_line") = 1,
+          nb::arg("to_line") = 0,
           "Parse a CSV string and return all rows as a list of lists.\n\n"
           "Args:\n"
           "    data: CSV content as a string\n"
           "    delimiter: Field delimiter character (default: ',')\n"
           "    quote: Quote character (default: '\"')\n"
           "    trim: Whether to trim whitespace from fields\n"
-          "    skip_empty_lines: Whether to skip empty lines\n\n"
+          "    skip_empty_lines: Whether to skip empty lines\n"
+          "    escape: Optional escape character, empty string for RFC doubled quotes\n"
+          "    comment: Optional comment prefix character\n"
+          "    relaxed: Keep parsing through relaxed parse errors when core supports it\n"
+          "    skip_lines_with_error: Skip malformed lines when core supports it\n"
+          "    max_row_size: Maximum row size, 0 for default/adaptive core behavior\n"
+          "    from_line: First 1-based line to parse\n"
+          "    to_line: Last 1-based line to parse, 0 for no upper bound\n\n"
           "Returns:\n"
           "    List of rows, where each row is a list of field values");
 
@@ -704,6 +786,13 @@ NB_MODULE(_core, m) {
           nb::arg("quote") = "\"",
           nb::arg("trim") = false,
           nb::arg("skip_empty_lines") = false,
+          nb::arg("escape") = "",
+          nb::arg("comment") = "",
+          nb::arg("relaxed") = false,
+          nb::arg("skip_lines_with_error") = false,
+          nb::arg("max_row_size") = 0,
+          nb::arg("from_line") = 1,
+          nb::arg("to_line") = 0,
           "Parse a CSV file using multiple threads for maximum performance.\n\n"
           "Args:\n"
           "    path: Path to the CSV file\n"
@@ -711,7 +800,14 @@ NB_MODULE(_core, m) {
           "    delimiter: Field delimiter character (default: ',')\n"
           "    quote: Quote character (default: '\"')\n"
           "    trim: Whether to trim whitespace from fields\n"
-          "    skip_empty_lines: Whether to skip empty lines\n\n"
+          "    skip_empty_lines: Whether to skip empty lines\n"
+          "    escape: Optional escape character, empty string for RFC doubled quotes\n"
+          "    comment: Optional comment prefix character\n"
+          "    relaxed: Keep parsing through relaxed parse errors when core supports it\n"
+          "    skip_lines_with_error: Skip malformed lines when core supports it\n"
+          "    max_row_size: Maximum row size, 0 for default/adaptive core behavior\n"
+          "    from_line: First 1-based line to parse\n"
+          "    to_line: Last 1-based line to parse, 0 for no upper bound\n\n"
           "Returns:\n"
           "    List of rows, where each row is a list of field values");
 
@@ -722,6 +818,13 @@ NB_MODULE(_core, m) {
           nb::arg("quote") = "\"",
           nb::arg("trim") = false,
           nb::arg("skip_empty_lines") = false,
+          nb::arg("escape") = "",
+          nb::arg("comment") = "",
+          nb::arg("relaxed") = false,
+          nb::arg("skip_lines_with_error") = false,
+          nb::arg("max_row_size") = 0,
+          nb::arg("from_line") = 1,
+          nb::arg("to_line") = 0,
           "Ultra-fast parallel parsing that returns raw numpy arrays.\n\n"
           "This is the fastest parsing mode, avoiding Python string creation.\n"
           "Returns (data, field_offsets, field_lengths, row_offsets) where:\n"

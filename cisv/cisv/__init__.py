@@ -83,6 +83,13 @@ def parse_file(
     *,
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = '',
+    comment: str = '',
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
     parallel: bool = False,
     num_threads: int = 0,
 ) -> List[List[str]]:
@@ -99,6 +106,13 @@ def parse_file(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
         parallel: Use multi-threaded parsing (faster for large files)
         num_threads: Number of threads for parallel parsing (0 = auto-detect)
 
@@ -120,9 +134,14 @@ def parse_file(
     try:
         if parallel:
             return _parse_file_parallel(
-                path, num_threads, delimiter, quote, trim, skip_empty_lines
+                path, num_threads, delimiter, quote, trim, skip_empty_lines,
+                escape, comment, relaxed, skip_lines_with_error, max_row_size,
+                from_line, to_line
             )
-        return _parse_file(path, delimiter, quote, trim, skip_empty_lines)
+        return _parse_file(
+            path, delimiter, quote, trim, skip_empty_lines, escape, comment,
+            relaxed, skip_lines_with_error, max_row_size, from_line, to_line
+        )
     except ValueError:
         raise
     except RuntimeError as e:
@@ -138,6 +157,13 @@ def parse_string(
     *,
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = '',
+    comment: str = '',
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
 ) -> List[List[str]]:
     """
     Parse a CSV string and return all rows.
@@ -148,6 +174,13 @@ def parse_string(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
 
     Returns:
         List of rows, where each row is a list of field values.
@@ -164,7 +197,10 @@ def parse_string(
         [['a', 'b', 'c'], ['1', '2', '3']]
     """
     try:
-        return _parse_string(content, delimiter, quote, trim, skip_empty_lines)
+        return _parse_string(
+            content, delimiter, quote, trim, skip_empty_lines, escape, comment,
+            relaxed, skip_lines_with_error, max_row_size, from_line, to_line
+        )
     except ValueError:
         raise
     except RuntimeError as e:
@@ -276,6 +312,13 @@ def parse_file_fast(
     *,
     trim: bool = False,
     skip_empty_lines: bool = False,
+    escape: str = '',
+    comment: str = '',
+    relaxed: bool = False,
+    skip_lines_with_error: bool = False,
+    max_row_size: int = 0,
+    from_line: int = 1,
+    to_line: int = 0,
     num_threads: int = 0,
 ) -> CisvResult:
     """
@@ -295,6 +338,13 @@ def parse_file_fast(
         quote: Quote character (default: '"')
         trim: Whether to trim whitespace from fields
         skip_empty_lines: Whether to skip empty lines
+        escape: Optional escape character, empty string for RFC doubled quotes
+        comment: Optional comment prefix character
+        relaxed: Keep parsing through relaxed parse errors when core supports it
+        skip_lines_with_error: Skip malformed lines when core supports it
+        max_row_size: Maximum row size, 0 for default/adaptive core behavior
+        from_line: First 1-based line to parse
+        to_line: Last 1-based line to parse, 0 for no upper bound
         num_threads: Number of threads for parallel parsing (0 = auto-detect)
 
     Returns:
@@ -312,7 +362,9 @@ def parse_file_fast(
     """
     try:
         data, offsets, lengths, rows = _parse_file_raw(
-            path, num_threads, delimiter, quote, trim, skip_empty_lines
+            path, num_threads, delimiter, quote, trim, skip_empty_lines,
+            escape, comment, relaxed, skip_lines_with_error, max_row_size,
+            from_line, to_line
         )
         return CisvResult(data, offsets, lengths, rows)
     except ValueError:

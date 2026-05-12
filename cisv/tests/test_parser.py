@@ -72,11 +72,31 @@ class TestParseString:
         assert rows == [["a", "b", "c"]]
 
     def test_skip_empty_lines(self):
-        """Test skipping empty lines."""
-        data = "a,b\n\n1,2\n\n3,4"
+        """Test skipping physically empty lines without dropping empty-field rows."""
+        data = "a,b,c\n\n,,\n1,2,3\n"
         rows = cisv.parse_string(data, skip_empty_lines=True)
-        # Note: actual behavior depends on implementation
-        assert len(rows) >= 3  # At least the non-empty rows
+        assert rows == [
+            ["a", "b", "c"],
+            ["", "", ""],
+            ["1", "2", "3"],
+        ]
+
+    def test_custom_escape(self):
+        """Test custom escape parsing."""
+        data = 'id,msg\n1,"hello \\"quoted\\" value"'
+        rows = cisv.parse_string(data, escape="\\")
+        assert rows == [["id", "msg"], ["1", 'hello "quoted" value']]
+
+    def test_comment_and_range_controls(self):
+        """Test comment and line range controls."""
+        data = "  #skip\nh1,h2\n1,2\n3,4\n"
+        rows = cisv.parse_string(data, comment="#", trim=True, from_line=1, to_line=3)
+        assert rows == [["h1", "h2"], ["1", "2"]]
+
+    def test_max_row_size(self):
+        """Test max row size enforcement in parse_string."""
+        with pytest.raises(cisv.CisvError):
+            cisv.parse_string("a,b\n123456789,2\n", max_row_size=8)
 
     def test_unicode(self):
         """Test parsing Unicode content."""
@@ -180,6 +200,49 @@ class TestParseFile:
             ["1", "2", "3"],
         ]
 
+    def test_parse_file_full_config(self, tmp_path):
+        """Test parse_file with escape, comments, and line controls."""
+        csv_file = tmp_path / "full_config.csv"
+        csv_file.write_text('  #skip\nid,msg\n1,"hello \\"quoted\\""\n2,tail\n')
+
+        rows = cisv.parse_file(
+            str(csv_file),
+            escape="\\",
+            comment="#",
+            trim=True,
+            from_line=1,
+            to_line=3,
+        )
+        assert rows == [["id", "msg"], ["1", 'hello "quoted"']]
+
+        parallel_rows = cisv.parse_file(
+            str(csv_file),
+            escape="\\",
+            comment="#",
+            trim=True,
+            from_line=1,
+            to_line=3,
+            parallel=True,
+            num_threads=2,
+        )
+        assert parallel_rows == rows
+
+    def test_parse_file_fast_full_config(self, tmp_path):
+        """Test parse_file_fast with comment and range controls."""
+        pytest.importorskip("numpy", exc_type=ImportError)
+
+        csv_file = tmp_path / "fast_config.csv"
+        csv_file.write_text("#skip\na,b\n1,2\n3,4\n")
+
+        result = cisv.parse_file_fast(
+            str(csv_file),
+            comment="#",
+            from_line=1,
+            to_line=3,
+            num_threads=2,
+        )
+        assert result.to_list() == [["a", "b"], ["1", "2"]]
+
 
 class TestCountRows:
     """Tests for count_rows function."""
@@ -258,6 +321,10 @@ class TestCountRows:
             cisv.count_rows(str(csv_file), from_line=-1)
         with pytest.raises(ValueError):
             cisv.count_rows(str(csv_file), from_line=3, to_line=2)
+        with pytest.raises(ValueError):
+            cisv.count_rows(str(csv_file), delimiter='"')
+        with pytest.raises(ValueError):
+            cisv.count_rows(str(csv_file), escape=",")
 
 
 class TestEdgeCases:
@@ -326,3 +393,16 @@ class TestValidation:
         csv_file.write_text("a,b\n1,2\n")
         with pytest.raises((ValueError, cisv.CisvError)):
             cisv.parse_file_benchmark(str(csv_file), quote='""')
+
+    def test_parse_config_conflicts(self):
+        """Parse APIs should reject unsafe config conflicts."""
+        with pytest.raises(ValueError):
+            cisv.parse_string("a,b\n1,2\n", delimiter='"')
+        with pytest.raises(ValueError):
+            cisv.parse_string("a,b\n1,2\n", escape=",")
+        with pytest.raises(ValueError):
+            cisv.parse_string("a,b\n1,2\n", comment=",")
+        with pytest.raises(ValueError):
+            cisv.parse_string("a,b\n1,2\n", from_line=3, to_line=2)
+        with pytest.raises(ValueError):
+            cisv.parse_string("a,b\n1,2\n", delimiter="\n")
