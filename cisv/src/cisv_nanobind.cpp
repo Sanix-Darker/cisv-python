@@ -112,6 +112,138 @@ static cisv_config make_config(
     return config;
 }
 
+static bool can_use_simple_raw_fast_path(const cisv_config &config) {
+    return config.escape == '\0' &&
+           config.comment == '\0' &&
+           !config.trim &&
+           !config.skip_empty_lines &&
+           !config.relaxed &&
+           !config.skip_lines_with_error &&
+           config.max_row_size == 0 &&
+           config.from_line <= 1 &&
+           config.to_line == 0;
+}
+
+static nb::tuple make_raw_arrays(
+    uint8_t *data_buf,
+    size_t total_data_size,
+    uint64_t *field_offsets,
+    uint32_t *field_lengths,
+    size_t total_fields,
+    uint64_t *row_offsets,
+    size_t total_rows,
+    nb::capsule data_owner
+) {
+    nb::capsule offsets_owner(field_offsets, [](void *p) noexcept { delete[] (uint64_t*)p; });
+    nb::capsule lengths_owner(field_lengths, [](void *p) noexcept { delete[] (uint32_t*)p; });
+    nb::capsule rows_owner(row_offsets, [](void *p) noexcept { delete[] (uint64_t*)p; });
+
+    size_t data_shape[1] = {total_data_size};
+    size_t fields_shape[1] = {total_fields};
+    size_t rows_shape[1] = {total_rows + 1};
+
+    auto data_arr = nb::ndarray<nb::numpy, uint8_t, nb::shape<-1>>(
+        data_buf, 1, data_shape, data_owner);
+    auto offsets_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
+        field_offsets, 1, fields_shape, offsets_owner);
+    auto lengths_arr = nb::ndarray<nb::numpy, uint32_t, nb::shape<-1>>(
+        field_lengths, 1, fields_shape, lengths_owner);
+    auto rows_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
+        row_offsets, 1, rows_shape, rows_owner);
+
+    return nb::make_tuple(data_arr, offsets_arr, lengths_arr, rows_arr);
+}
+
+static bool try_parse_file_raw_simple(
+    const std::string &path,
+    const cisv_config &config,
+    nb::tuple *out
+) {
+    if (!can_use_simple_raw_fast_path(config)) {
+        return false;
+    }
+
+    cisv_mmap_file_t *mmap_file = cisv_mmap_open(path.c_str());
+    if (!mmap_file) {
+        return false;
+    }
+    std::unique_ptr<cisv_mmap_file_t, decltype(&cisv_mmap_close)> mmap_guard(
+        mmap_file, cisv_mmap_close);
+    if (mmap_file->size == 0) {
+        return false;
+    }
+
+    const uint8_t *data = mmap_file->data;
+    const size_t size = mmap_file->size;
+    if (size >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF) {
+        return false;
+    }
+
+    size_t total_rows = 0;
+    size_t total_fields = 1;
+    for (size_t i = 0; i < size; i++) {
+        const uint8_t c = data[i];
+        if (c == static_cast<uint8_t>(config.quote) || c == '\r') {
+            return false;
+        }
+        if (c == static_cast<uint8_t>(config.delimiter)) {
+            total_fields++;
+        } else if (c == '\n') {
+            total_rows++;
+            if (i + 1 < size) {
+                total_fields++;
+            }
+        }
+    }
+    if (data[size - 1] != '\n') {
+        total_rows++;
+    }
+
+    uint64_t *field_offsets = new uint64_t[total_fields];
+    uint32_t *field_lengths = new uint32_t[total_fields];
+    uint64_t *row_offsets = new uint64_t[total_rows + 1];
+
+    size_t field_idx = 0;
+    size_t row_idx = 0;
+    size_t field_start = 0;
+    row_offsets[row_idx++] = 0;
+
+    for (size_t i = 0; i < size; i++) {
+        const uint8_t c = data[i];
+        if (c == static_cast<uint8_t>(config.delimiter) || c == '\n') {
+            field_offsets[field_idx] = static_cast<uint64_t>(field_start);
+            field_lengths[field_idx] = static_cast<uint32_t>(i - field_start);
+            field_idx++;
+            field_start = i + 1;
+
+            if (c == '\n' && i + 1 < size) {
+                row_offsets[row_idx++] = static_cast<uint64_t>(field_idx);
+            }
+        }
+    }
+
+    if (data[size - 1] != '\n') {
+        field_offsets[field_idx] = static_cast<uint64_t>(field_start);
+        field_lengths[field_idx] = static_cast<uint32_t>(size - field_start);
+        field_idx++;
+    }
+    row_offsets[total_rows] = static_cast<uint64_t>(total_fields);
+
+    nb::capsule data_owner(mmap_guard.release(), [](void *p) noexcept {
+        cisv_mmap_close((cisv_mmap_file_t*)p);
+    });
+    *out = make_raw_arrays(
+        mmap_file->data,
+        mmap_file->size,
+        field_offsets,
+        field_lengths,
+        total_fields,
+        row_offsets,
+        total_rows,
+        data_owner);
+    return true;
+}
+
 /**
  * Parse a CSV file and return all rows at once.
  *
@@ -332,6 +464,11 @@ static nb::tuple parse_file_raw(
         delimiter, quote, escape, comment, trim, skip_empty_lines,
         relaxed, skip_lines_with_error, max_row_size, from_line, to_line);
 
+    nb::tuple simple_result;
+    if (try_parse_file_raw_simple(path, config, &simple_result)) {
+        return simple_result;
+    }
+
     // Parse file with parallel processing
     int result_count = 0;
     cisv_result_t **results = nullptr;
@@ -432,26 +569,16 @@ static nb::tuple parse_file_raw(
 
     cisv_results_free(results, result_count);
 
-    // Create numpy arrays that own the data
     nb::capsule data_owner(data_buf, [](void *p) noexcept { delete[] (uint8_t*)p; });
-    nb::capsule offsets_owner(field_offsets, [](void *p) noexcept { delete[] (uint64_t*)p; });
-    nb::capsule lengths_owner(field_lengths, [](void *p) noexcept { delete[] (uint32_t*)p; });
-    nb::capsule rows_owner(row_offsets, [](void *p) noexcept { delete[] (uint64_t*)p; });
-
-    size_t data_shape[1] = {total_data_size};
-    size_t fields_shape[1] = {total_fields};
-    size_t rows_shape[1] = {total_rows + 1};
-
-    auto data_arr = nb::ndarray<nb::numpy, uint8_t, nb::shape<-1>>(
-        data_buf, 1, data_shape, data_owner);
-    auto offsets_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
-        field_offsets, 1, fields_shape, offsets_owner);
-    auto lengths_arr = nb::ndarray<nb::numpy, uint32_t, nb::shape<-1>>(
-        field_lengths, 1, fields_shape, lengths_owner);
-    auto rows_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
-        row_offsets, 1, rows_shape, rows_owner);
-
-    return nb::make_tuple(data_arr, offsets_arr, lengths_arr, rows_arr);
+    return make_raw_arrays(
+        data_buf,
+        total_data_size,
+        field_offsets,
+        field_lengths,
+        total_fields,
+        row_offsets,
+        total_rows,
+        data_owner);
 }
 
 /**

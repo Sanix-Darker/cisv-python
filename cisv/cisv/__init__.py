@@ -7,6 +7,7 @@ This module provides Python bindings to the CISV C library using nanobind,
 offering 10-100x better performance than ctypes-based bindings.
 """
 
+import os
 from typing import TYPE_CHECKING, Iterator, List
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
@@ -74,6 +75,51 @@ class CisvBenchmarkResult:
 class CisvError(Exception):
     """Base exception for CISV errors."""
     pass
+
+
+def _require_numpy_for_fast_path() -> None:
+    try:
+        import numpy  # noqa: F401
+    except ImportError as e:
+        raise CisvError(
+            "parse_file_fast requires a working numpy installation; "
+            "install or repair numpy to use the lazy ndarray-backed result"
+        ) from e
+
+
+def _positive_int_env(*names: str) -> int:
+    for name in names:
+        value = os.environ.get(name)
+        if not value:
+            continue
+        try:
+            parsed = int(value)
+        except ValueError:
+            continue
+        if parsed > 0:
+            return parsed
+    return 0
+
+
+def _adaptive_fast_threads(path: str, requested: int) -> int:
+    if requested != 0:
+        return requested
+
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return requested
+
+    if size < 1 * 1024 * 1024:
+        return 1
+    if size >= 64 * 1024 * 1024:
+        return requested
+
+    workers = min(os.cpu_count() or 1, 4)
+    proc_cap = _positive_int_env("CISV_MAX_PROCS", "GOMAXPROCS")
+    if proc_cap > 0:
+        workers = min(workers, proc_cap)
+    return max(workers, 1)
 
 
 class CisvIterator:
@@ -435,9 +481,12 @@ def parse_file_fast(
         >>> print(result.get_field(1, 0))  # Single field access
         'value1'
     """
+    _require_numpy_for_fast_path()
+    effective_threads = _adaptive_fast_threads(path, num_threads)
+
     try:
         data, offsets, lengths, rows = _parse_file_raw(
-            path, num_threads, delimiter, quote, trim, skip_empty_lines,
+            path, effective_threads, delimiter, quote, trim, skip_empty_lines,
             escape, comment, relaxed, skip_lines_with_error, max_row_size,
             from_line, to_line
         )
@@ -445,6 +494,11 @@ def parse_file_fast(
     except ValueError:
         raise
     except RuntimeError as e:
+        if "std::bad_cast" in str(e):
+            raise CisvError(
+                "parse_file_fast could not create numpy arrays; "
+                "verify that numpy imports correctly for this Python interpreter"
+            ) from e
         raise CisvError(str(e)) from e
     except Exception as e:
         raise CisvError(f"Failed to parse file: {e}") from e

@@ -94,6 +94,11 @@ def benchmark_cisv(filepath: str, parallel: bool = False, fast: bool = False, be
 
     # Warm up
     cisv.count_rows(filepath)
+    if fast:
+        try:
+            import numpy  # noqa: F401
+        except ImportError as e:
+            return None, f"numpy unavailable: {e}"
 
     # Count rows (fast path) - only for non-parallel single mode
     count_time = None
@@ -129,6 +134,8 @@ def benchmark_cisv(filepath: str, parallel: bool = False, fast: bool = False, be
         if parallel or fast or benchmark:
             return None, "parallel/fast/benchmark not supported (old cisv version)"
         rows = cisv.parse_file(filepath)
+    except getattr(cisv, "CisvError", RuntimeError) as e:
+        return None, str(e)
     parse_time = time.perf_counter() - start
 
     # Get row count and column count
