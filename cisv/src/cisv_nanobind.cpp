@@ -154,6 +154,44 @@ static nb::tuple make_raw_arrays(
     return nb::make_tuple(data_arr, offsets_arr, lengths_arr, rows_arr);
 }
 
+static nb::tuple make_raw_arrays_from_vectors(
+    uint8_t *data_buf,
+    size_t total_data_size,
+    std::vector<uint64_t> &&field_offsets,
+    std::vector<uint32_t> &&field_lengths,
+    std::vector<uint64_t> &&row_offsets,
+    nb::capsule data_owner
+) {
+    auto *offsets_vec = new std::vector<uint64_t>(std::move(field_offsets));
+    auto *lengths_vec = new std::vector<uint32_t>(std::move(field_lengths));
+    auto *rows_vec = new std::vector<uint64_t>(std::move(row_offsets));
+
+    nb::capsule offsets_owner(offsets_vec, [](void *p) noexcept {
+        delete (std::vector<uint64_t>*)p;
+    });
+    nb::capsule lengths_owner(lengths_vec, [](void *p) noexcept {
+        delete (std::vector<uint32_t>*)p;
+    });
+    nb::capsule rows_owner(rows_vec, [](void *p) noexcept {
+        delete (std::vector<uint64_t>*)p;
+    });
+
+    size_t data_shape[1] = {total_data_size};
+    size_t fields_shape[1] = {offsets_vec->size()};
+    size_t rows_shape[1] = {rows_vec->size()};
+
+    auto data_arr = nb::ndarray<nb::numpy, uint8_t, nb::shape<-1>>(
+        data_buf, 1, data_shape, data_owner);
+    auto offsets_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
+        offsets_vec->data(), 1, fields_shape, offsets_owner);
+    auto lengths_arr = nb::ndarray<nb::numpy, uint32_t, nb::shape<-1>>(
+        lengths_vec->data(), 1, fields_shape, lengths_owner);
+    auto rows_arr = nb::ndarray<nb::numpy, uint64_t, nb::shape<-1>>(
+        rows_vec->data(), 1, rows_shape, rows_owner);
+
+    return nb::make_tuple(data_arr, offsets_arr, lengths_arr, rows_arr);
+}
+
 static bool try_parse_file_raw_simple(
     const std::string &path,
     const cisv_config &config,
@@ -179,67 +217,51 @@ static bool try_parse_file_raw_simple(
         return false;
     }
 
-    size_t total_rows = 0;
-    size_t total_fields = 1;
+    std::vector<uint64_t> field_offsets;
+    std::vector<uint32_t> field_lengths;
+    std::vector<uint64_t> row_offsets;
+
+    size_t reserve_fields = (size / 12) + 1024;
+    if (reserve_fields < 1024) {
+        reserve_fields = 1024;
+    }
+    field_offsets.reserve(reserve_fields);
+    field_lengths.reserve(reserve_fields);
+    row_offsets.reserve((size / 64) + 1024);
+    row_offsets.push_back(0);
+
+    size_t field_start = 0;
     for (size_t i = 0; i < size; i++) {
         const uint8_t c = data[i];
         if (c == static_cast<uint8_t>(config.quote) || c == '\r') {
             return false;
         }
-        if (c == static_cast<uint8_t>(config.delimiter)) {
-            total_fields++;
-        } else if (c == '\n') {
-            total_rows++;
-            if (i + 1 < size) {
-                total_fields++;
-            }
-        }
-    }
-    if (data[size - 1] != '\n') {
-        total_rows++;
-    }
-
-    uint64_t *field_offsets = new uint64_t[total_fields];
-    uint32_t *field_lengths = new uint32_t[total_fields];
-    uint64_t *row_offsets = new uint64_t[total_rows + 1];
-
-    size_t field_idx = 0;
-    size_t row_idx = 0;
-    size_t field_start = 0;
-    row_offsets[row_idx++] = 0;
-
-    for (size_t i = 0; i < size; i++) {
-        const uint8_t c = data[i];
         if (c == static_cast<uint8_t>(config.delimiter) || c == '\n') {
-            field_offsets[field_idx] = static_cast<uint64_t>(field_start);
-            field_lengths[field_idx] = static_cast<uint32_t>(i - field_start);
-            field_idx++;
+            field_offsets.push_back(static_cast<uint64_t>(field_start));
+            field_lengths.push_back(static_cast<uint32_t>(i - field_start));
             field_start = i + 1;
-
-            if (c == '\n' && i + 1 < size) {
-                row_offsets[row_idx++] = static_cast<uint64_t>(field_idx);
+            if (i + 1 < size) {
+                if (c == '\n') {
+                    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
+                }
             }
         }
     }
-
     if (data[size - 1] != '\n') {
-        field_offsets[field_idx] = static_cast<uint64_t>(field_start);
-        field_lengths[field_idx] = static_cast<uint32_t>(size - field_start);
-        field_idx++;
+        field_offsets.push_back(static_cast<uint64_t>(field_start));
+        field_lengths.push_back(static_cast<uint32_t>(size - field_start));
     }
-    row_offsets[total_rows] = static_cast<uint64_t>(total_fields);
+    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
 
     nb::capsule data_owner(mmap_guard.release(), [](void *p) noexcept {
         cisv_mmap_close((cisv_mmap_file_t*)p);
     });
-    *out = make_raw_arrays(
+    *out = make_raw_arrays_from_vectors(
         mmap_file->data,
         mmap_file->size,
-        field_offsets,
-        field_lengths,
-        total_fields,
-        row_offsets,
-        total_rows,
+        std::move(field_offsets),
+        std::move(field_lengths),
+        std::move(row_offsets),
         data_owner);
     return true;
 }
