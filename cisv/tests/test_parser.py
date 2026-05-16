@@ -260,6 +260,32 @@ class TestParseFile:
         )
         assert result.to_list() == [["a", "b"], ["1", "2"]]
 
+    def test_parse_file_fast_simple_raw_path(self, tmp_path):
+        """Simple LF files should parse through the raw ndarray fast path."""
+        pytest.importorskip("numpy", exc_type=ImportError)
+
+        csv_file = tmp_path / "fast_simple.csv"
+        csv_file.write_text("a,b,c\n1,2,3\n4,,6\n")
+
+        result = cisv.parse_file_fast(str(csv_file))
+        assert len(result) == 3
+        assert result.field_count == 9
+        assert result.to_list() == [
+            ["a", "b", "c"],
+            ["1", "2", "3"],
+            ["4", "", "6"],
+        ]
+
+    def test_parse_file_fast_crlf_fallback(self, tmp_path):
+        """CRLF files must fall back to the full parser and keep semantics."""
+        pytest.importorskip("numpy", exc_type=ImportError)
+
+        csv_file = tmp_path / "fast_crlf.csv"
+        csv_file.write_bytes(b"a,b\r\n1,2\r\n")
+
+        result = cisv.parse_file_fast(str(csv_file))
+        assert result.to_list() == [["a", "b"], ["1", "2"]]
+
 
 class TestCountRows:
     """Tests for count_rows function."""

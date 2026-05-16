@@ -16,6 +16,9 @@
 #include <thread>
 #include <vector>
 #include <atomic>
+#if (defined(__x86_64__) || defined(__amd64__) || defined(_M_X64)) && (defined(__GNUC__) || defined(__clang__))
+#include <immintrin.h>
+#endif
 
 extern "C" {
 #include "cisv/parser.h"
@@ -192,6 +195,156 @@ static nb::tuple make_raw_arrays_from_vectors(
     return nb::make_tuple(data_arr, offsets_arr, lengths_arr, rows_arr);
 }
 
+static inline void push_simple_field(
+    std::vector<uint64_t> &field_offsets,
+    std::vector<uint32_t> &field_lengths,
+    std::vector<uint64_t> &row_offsets,
+    size_t field_start,
+    size_t pos,
+    size_t size,
+    bool is_newline
+) {
+    field_offsets.push_back(static_cast<uint64_t>(field_start));
+    field_lengths.push_back(static_cast<uint32_t>(pos - field_start));
+    if (is_newline && pos + 1 < size) {
+        row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
+    }
+}
+
+static bool index_simple_scalar(
+    const uint8_t *data,
+    size_t size,
+    uint8_t delimiter,
+    uint8_t quote,
+    std::vector<uint64_t> &field_offsets,
+    std::vector<uint32_t> &field_lengths,
+    std::vector<uint64_t> &row_offsets
+) {
+    size_t field_start = 0;
+    for (size_t i = 0; i < size; i++) {
+        const uint8_t c = data[i];
+        if (c == quote || c == '\r') {
+            return false;
+        }
+        if (c == delimiter || c == '\n') {
+            push_simple_field(
+                field_offsets,
+                field_lengths,
+                row_offsets,
+                field_start,
+                i,
+                size,
+                c == '\n');
+            field_start = i + 1;
+        }
+    }
+    if (data[size - 1] != '\n') {
+        field_offsets.push_back(static_cast<uint64_t>(field_start));
+        field_lengths.push_back(static_cast<uint32_t>(size - field_start));
+    }
+    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
+    return true;
+}
+
+#if (defined(__x86_64__) || defined(__amd64__) || defined(_M_X64)) && (defined(__GNUC__) || defined(__clang__))
+__attribute__((target("avx2")))
+static bool index_simple_avx2(
+    const uint8_t *data,
+    size_t size,
+    uint8_t delimiter,
+    uint8_t quote,
+    std::vector<uint64_t> &field_offsets,
+    std::vector<uint32_t> &field_lengths,
+    std::vector<uint64_t> &row_offsets
+) {
+    const __m256i delimiter_v = _mm256_set1_epi8(static_cast<char>(delimiter));
+    const __m256i newline_v = _mm256_set1_epi8('\n');
+    const __m256i quote_v = _mm256_set1_epi8(static_cast<char>(quote));
+    const __m256i cr_v = _mm256_set1_epi8('\r');
+
+    size_t field_start = 0;
+    size_t i = 0;
+    while (i + 32 <= size) {
+        const __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(data + i));
+        const uint32_t bad_mask = static_cast<uint32_t>(_mm256_movemask_epi8(
+            _mm256_or_si256(
+                _mm256_cmpeq_epi8(chunk, quote_v),
+                _mm256_cmpeq_epi8(chunk, cr_v))));
+        if (bad_mask != 0) {
+            return false;
+        }
+
+        uint32_t delimiter_mask = static_cast<uint32_t>(_mm256_movemask_epi8(
+            _mm256_cmpeq_epi8(chunk, delimiter_v)));
+        uint32_t newline_mask = static_cast<uint32_t>(_mm256_movemask_epi8(
+            _mm256_cmpeq_epi8(chunk, newline_v)));
+        uint32_t structural_mask = delimiter_mask | newline_mask;
+
+        while (structural_mask != 0) {
+            const uint32_t bit = static_cast<uint32_t>(__builtin_ctz(structural_mask));
+            const size_t pos = i + bit;
+            const uint32_t bit_mask = 1U << bit;
+            push_simple_field(
+                field_offsets,
+                field_lengths,
+                row_offsets,
+                field_start,
+                pos,
+                size,
+                (newline_mask & bit_mask) != 0);
+            field_start = pos + 1;
+            structural_mask &= structural_mask - 1;
+        }
+
+        i += 32;
+    }
+
+    for (; i < size; i++) {
+        const uint8_t c = data[i];
+        if (c == quote || c == '\r') {
+            return false;
+        }
+        if (c == delimiter || c == '\n') {
+            push_simple_field(
+                field_offsets,
+                field_lengths,
+                row_offsets,
+                field_start,
+                i,
+                size,
+                c == '\n');
+            field_start = i + 1;
+        }
+    }
+
+    if (data[size - 1] != '\n') {
+        field_offsets.push_back(static_cast<uint64_t>(field_start));
+        field_lengths.push_back(static_cast<uint32_t>(size - field_start));
+    }
+    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
+    return true;
+}
+#endif
+
+static bool index_simple_csv(
+    const uint8_t *data,
+    size_t size,
+    uint8_t delimiter,
+    uint8_t quote,
+    std::vector<uint64_t> &field_offsets,
+    std::vector<uint32_t> &field_lengths,
+    std::vector<uint64_t> &row_offsets
+) {
+#if (defined(__x86_64__) || defined(__amd64__) || defined(_M_X64)) && (defined(__GNUC__) || defined(__clang__))
+    if (__builtin_cpu_supports("avx2")) {
+        return index_simple_avx2(
+            data, size, delimiter, quote, field_offsets, field_lengths, row_offsets);
+    }
+#endif
+    return index_simple_scalar(
+        data, size, delimiter, quote, field_offsets, field_lengths, row_offsets);
+}
+
 static bool try_parse_file_raw_simple(
     const std::string &path,
     const cisv_config &config,
@@ -230,28 +383,16 @@ static bool try_parse_file_raw_simple(
     row_offsets.reserve((size / 64) + 1024);
     row_offsets.push_back(0);
 
-    size_t field_start = 0;
-    for (size_t i = 0; i < size; i++) {
-        const uint8_t c = data[i];
-        if (c == static_cast<uint8_t>(config.quote) || c == '\r') {
-            return false;
-        }
-        if (c == static_cast<uint8_t>(config.delimiter) || c == '\n') {
-            field_offsets.push_back(static_cast<uint64_t>(field_start));
-            field_lengths.push_back(static_cast<uint32_t>(i - field_start));
-            field_start = i + 1;
-            if (i + 1 < size) {
-                if (c == '\n') {
-                    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
-                }
-            }
-        }
+    if (!index_simple_csv(
+            data,
+            size,
+            static_cast<uint8_t>(config.delimiter),
+            static_cast<uint8_t>(config.quote),
+            field_offsets,
+            field_lengths,
+            row_offsets)) {
+        return false;
     }
-    if (data[size - 1] != '\n') {
-        field_offsets.push_back(static_cast<uint64_t>(field_start));
-        field_lengths.push_back(static_cast<uint32_t>(size - field_start));
-    }
-    row_offsets.push_back(static_cast<uint64_t>(field_offsets.size()));
 
     nb::capsule data_owner(mmap_guard.release(), [](void *p) noexcept {
         cisv_mmap_close((cisv_mmap_file_t*)p);
